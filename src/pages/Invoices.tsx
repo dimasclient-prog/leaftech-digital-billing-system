@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Trash2, FileText } from "lucide-react";
+import { Plus, Trash2, FileText, Download } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { formatIDR, formatDate, statusColor, statusLabel } from "@/lib/format";
+import { generateInvoicePdf } from "@/lib/invoicePdf";
 
 interface LineItem { description: string; quantity: number; unit_price: number; }
 
@@ -64,6 +65,38 @@ const Invoices = () => {
     const { error } = await supabase.from("invoices").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     toast.success("Dihapus"); load();
+  };
+
+  const downloadPdf = async (invId: string) => {
+    const [{ data: inv }, { data: its }, { data: ag }] = await Promise.all([
+      supabase.from("invoices").select("*, client:clients(*)").eq("id", invId).single(),
+      supabase.from("invoice_items").select("*").eq("invoice_id", invId).order("position"),
+      supabase.from("agency_settings").select("*").limit(1).single(),
+    ]);
+    if (!inv) { toast.error("Invoice tidak ditemukan"); return; }
+    const doc = generateInvoicePdf({
+      invoice: {
+        invoice_number: inv.invoice_number,
+        issue_date: inv.issue_date,
+        due_date: inv.due_date,
+        subtotal: Number(inv.subtotal),
+        tax_rate: Number(inv.tax_rate),
+        tax_amount: Number(inv.tax_amount),
+        total: Number(inv.total),
+        paid_amount: Number(inv.paid_amount),
+        status: inv.status,
+        notes: inv.notes,
+        client: (inv as any).client,
+      },
+      items: (its ?? []).map((it: any) => ({
+        description: it.description,
+        quantity: Number(it.quantity),
+        unit_price: Number(it.unit_price),
+        amount: Number(it.amount),
+      })),
+      agency: ag ?? { name: "My Agency" },
+    });
+    doc.save(`${inv.invoice_number}.pdf`);
   };
 
   return (
@@ -129,6 +162,7 @@ const Invoices = () => {
                   <p className="text-xs text-muted-foreground">Dibayar: {formatIDR(inv.paid_amount)}</p>
                 </div>
                 <Badge className={`${statusColor[inv.status]} border-0 mr-2`}>{statusLabel[inv.status]}</Badge>
+                <Button variant="ghost" size="icon" onClick={() => downloadPdf(inv.id)} title="Download PDF"><Download className="w-4 h-4" /></Button>
                 <Button variant="ghost" size="icon" onClick={() => remove(inv.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
               </div>
             ))}
