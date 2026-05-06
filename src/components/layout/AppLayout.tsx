@@ -27,7 +27,7 @@ const titleMap: Record<string, string> = {
 
 const AppLayout = () => {
   const { pathname } = useLocation();
-  const title = titleMap[pathname] ?? (pathname.startsWith("/invoices") ? "Invoice Detail" : "Invoize");
+   const title = titleMap[pathname] ?? (pathname.startsWith("/invoices") ? "Invoice Detail" : "Leaftech Billing System");
 
   return (
     <div className="min-h-screen flex w-full bg-background">
@@ -37,7 +37,7 @@ const AppLayout = () => {
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <p className="font-semibold text-sidebar-foreground leading-tight">Invoize</p>
+           <p className="font-semibold text-sidebar-foreground leading-tight">Leaftech</p>
             <p className="text-[11px] text-muted-foreground">Mini ERP</p>
           </div>
         </div>
