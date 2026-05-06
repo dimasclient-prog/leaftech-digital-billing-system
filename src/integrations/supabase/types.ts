@@ -143,9 +143,14 @@ export type Database = {
           due_date: string
           id: string
           invoice_number: string
+          is_recurring: boolean
           issue_date: string
+          next_run_date: string | null
           notes: string | null
           paid_amount: number
+          recurring_active: boolean
+          recurring_day: number | null
+          recurring_parent_id: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -159,9 +164,14 @@ export type Database = {
           due_date?: string
           id?: string
           invoice_number: string
+          is_recurring?: boolean
           issue_date?: string
+          next_run_date?: string | null
           notes?: string | null
           paid_amount?: number
+          recurring_active?: boolean
+          recurring_day?: number | null
+          recurring_parent_id?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           tax_amount?: number
@@ -175,9 +185,14 @@ export type Database = {
           due_date?: string
           id?: string
           invoice_number?: string
+          is_recurring?: boolean
           issue_date?: string
+          next_run_date?: string | null
           notes?: string | null
           paid_amount?: number
+          recurring_active?: boolean
+          recurring_day?: number | null
+          recurring_parent_id?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           tax_amount?: number
@@ -191,6 +206,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_recurring_parent_id_fkey"
+            columns: ["recurring_parent_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
         ]
@@ -250,6 +272,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      compute_next_run_date: {
+        Args: { p_day: number; p_from: string }
+        Returns: string
+      }
+      generate_recurring_invoices: { Args: never; Returns: number }
       recompute_invoice_totals: {
         Args: { p_invoice_id: string }
         Returns: undefined
