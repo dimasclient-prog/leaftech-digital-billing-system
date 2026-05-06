@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Plus, Download, Mail, Trash2, ArrowLeft, Receipt } from "lucide-react";
 import { formatIDR, formatDate, statusColor, statusLabel, methodLabel } from "@/lib/format";
 import { generateReceiptPdf } from "@/lib/receiptPdf";
+import { generateInvoicePdf } from "@/lib/invoicePdf";
 
 const InvoiceDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -90,6 +91,33 @@ const InvoiceDetail = () => {
     doc.save(`${pay.receipt_number}.pdf`);
   };
 
+  const downloadInvoice = () => {
+    if (!invoice) return;
+    const doc = generateInvoicePdf({
+      invoice: {
+        invoice_number: invoice.invoice_number,
+        issue_date: invoice.issue_date,
+        due_date: invoice.due_date,
+        subtotal: Number(invoice.subtotal),
+        tax_rate: Number(invoice.tax_rate),
+        tax_amount: Number(invoice.tax_amount),
+        total: Number(invoice.total),
+        paid_amount: Number(invoice.paid_amount),
+        status: invoice.status,
+        notes: invoice.notes,
+        client: invoice.client,
+      },
+      items: items.map((it) => ({
+        description: it.description,
+        quantity: Number(it.quantity),
+        unit_price: Number(it.unit_price),
+        amount: Number(it.amount),
+      })),
+      agency: agency ?? { name: "My Agency" },
+    });
+    doc.save(`${invoice.invoice_number}.pdf`);
+  };
+
   const emailReceipt = async (pay: any) => {
     if (!invoice.client?.email) { toast.error("Client tidak memiliki email"); return; }
     const doc = buildPdf(pay);
@@ -146,6 +174,7 @@ const InvoiceDetail = () => {
               <p className="text-sm text-muted-foreground">Total</p>
               <p className="text-2xl font-bold">{formatIDR(invoice.total)}</p>
               <p className="text-xs text-muted-foreground mt-1">Dibayar {formatIDR(invoice.paid_amount)} • Sisa <span className="font-semibold text-foreground">{formatIDR(remaining)}</span></p>
+              <Button size="sm" variant="outline" className="mt-2" onClick={downloadInvoice}><Download className="w-4 h-4 mr-1" />Download Invoice PDF</Button>
             </div>
           </div>
 
