@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { formatIDR, formatDate, statusColor, statusLabel, methodLabel } from "@/lib/format";
 import { generateReceiptPdf } from "@/lib/receiptPdf";
 import { generateInvoicePdf } from "@/lib/invoicePdf";
+import { withLogoDataUrl } from "@/lib/agencyLogo";
 
 const InvoiceDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -77,7 +78,7 @@ const InvoiceDetail = () => {
     } finally { setBusy(false); }
   };
 
-  const buildPdf = (pay: any) => generateReceiptPdf({
+  const buildPdf = async (pay: any) => generateReceiptPdf({
     receipt_number: pay.receipt_number,
     payment_date: pay.payment_date,
     method: pay.method,
@@ -90,16 +91,17 @@ const InvoiceDetail = () => {
       status: invoice.status,
       client: invoice.client,
     },
-    agency: agency ?? { name: "My Agency" },
+    agency: await withLogoDataUrl(agency ?? { name: "My Agency" }),
   });
 
-  const downloadReceipt = (pay: any) => {
-    const doc = buildPdf(pay);
+  const downloadReceipt = async (pay: any) => {
+    const doc = await buildPdf(pay);
     doc.save(`${pay.receipt_number}.pdf`);
   };
 
-  const downloadInvoice = () => {
+  const downloadInvoice = async () => {
     if (!invoice) return;
+    const ag = await withLogoDataUrl(agency ?? { name: "My Agency" });
     const doc = generateInvoicePdf({
       invoice: {
         invoice_number: invoice.invoice_number,
@@ -120,14 +122,14 @@ const InvoiceDetail = () => {
         unit_price: Number(it.unit_price),
         amount: Number(it.amount),
       })),
-      agency: agency ?? { name: "My Agency" },
+      agency: ag,
     });
     doc.save(`${invoice.invoice_number}.pdf`);
   };
 
   const emailReceipt = async (pay: any) => {
     if (!invoice.client?.email) { toast.error("Client tidak memiliki email"); return; }
-    const doc = buildPdf(pay);
+    const doc = await buildPdf(pay);
     const pdfBase64 = doc.output("datauristring").split(",")[1];
     toast.loading("Mengirim email...", { id: "em" });
     const { data, error } = await supabase.functions.invoke("send-receipt-email", {

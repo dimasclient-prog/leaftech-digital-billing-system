@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { formatIDR, formatDate, statusColor, statusLabel } from "@/lib/format";
 import { generateInvoicePdf } from "@/lib/invoicePdf";
+import { withLogoDataUrl } from "@/lib/agencyLogo";
 
 interface LineItem { description: string; quantity: number; unit_price: number; }
 
@@ -83,6 +84,7 @@ const Invoices = () => {
       supabase.from("agency_settings").select("*").limit(1).single(),
     ]);
     if (!inv) { toast.error("Invoice tidak ditemukan"); return; }
+    const agency = await withLogoDataUrl(ag ?? { name: "My Agency" });
     const doc = generateInvoicePdf({
       invoice: {
         invoice_number: inv.invoice_number,
@@ -103,7 +105,7 @@ const Invoices = () => {
         unit_price: Number(it.unit_price),
         amount: Number(it.amount),
       })),
-      agency: ag ?? { name: "My Agency" },
+      agency,
     });
     doc.save(`${inv.invoice_number}.pdf`);
   };
