@@ -32,26 +32,55 @@ interface InvoiceData {
     bank_account_number?: string | null;
     bank_account_name?: string | null;
     receipt_footer?: string | null;
+    logo_url?: string | null;
+    brand_color?: string | null;
+    invoice_header_label?: string | null;
   };
+}
+
+function hexToRgb(hex?: string | null): [number, number, number] {
+  const fallback: [number, number, number] = [34, 156, 96];
+  if (!hex) return fallback;
+  const m = hex.replace("#", "").match(/^([0-9a-f]{6})$/i);
+  if (!m) return fallback;
+  const v = parseInt(m[1], 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
 export function generateInvoicePdf(data: InvoiceData): jsPDF {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
+  const [br, bg, bb] = hexToRgb(data.agency.brand_color);
 
   // Header band
-  doc.setFillColor(34, 156, 96);
+  doc.setFillColor(br, bg, bb);
   doc.rect(0, 0, W, 32, "F");
   doc.setTextColor(255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.text("INVOICE", 14, 14);
+  doc.text((data.agency.invoice_header_label || "INVOICE").toUpperCase(), 14, 14);
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.text("Tagihan", 14, 21);
 
+  // Logo (top-right) — fall back to text name
+  let nameAnchorY = 14;
+  if (data.agency.logo_url) {
+    try {
+      const ext = (data.agency.logo_url.split(".").pop() || "PNG").toUpperCase();
+      const fmt = ext === "JPG" ? "JPEG" : ext;
+      doc.addImage(data.agency.logo_url, fmt, W - 36, 4, 22, 22);
+      doc.setFontSize(10);
+      doc.text(data.agency.name, W - 40, 14, { align: "right" });
+      nameAnchorY = 0; // already drawn
+    } catch {
+      // ignore — fall back below
+    }
+  }
+  if (nameAnchorY) {
   doc.setFontSize(11);
   doc.text(data.agency.name, W - 14, 14, { align: "right" });
+  }
   doc.setFontSize(9);
   if (data.agency.email) doc.text(data.agency.email, W - 14, 20, { align: "right" });
   if (data.agency.phone) doc.text(data.agency.phone, W - 14, 25, { align: "right" });
@@ -82,7 +111,7 @@ export function generateInvoicePdf(data: InvoiceData): jsPDF {
 
   // Bill to
   y += 12;
-  doc.setFillColor(240, 250, 244);
+  doc.setFillColor(Math.min(255, br + 200), Math.min(255, bg + 100), Math.min(255, bb + 150));
   doc.roundedRect(14, y, W - 28, 28, 3, 3, "F");
   doc.setFontSize(9);
   doc.setTextColor(100);
@@ -113,7 +142,7 @@ export function generateInvoicePdf(data: InvoiceData): jsPDF {
       formatIDR(it.amount),
     ]),
     styles: { fontSize: 10, cellPadding: 3 },
-    headStyles: { fillColor: [34, 156, 96], textColor: 255, fontStyle: "bold" },
+    headStyles: { fillColor: [br, bg, bb], textColor: 255, fontStyle: "bold" },
     columnStyles: {
       1: { halign: "right", cellWidth: 20 },
       2: { halign: "right", cellWidth: 40 },
@@ -141,7 +170,7 @@ export function generateInvoicePdf(data: InvoiceData): jsPDF {
     const isRem = label === "Sisa Tagihan";
     if (isTotal || isRem) doc.setFont("helvetica", "bold");
     else doc.setFont("helvetica", "normal");
-    doc.setTextColor(isRem ? 34 : 40, isRem ? 156 : 40, isRem ? 96 : 40);
+    if (isRem) doc.setTextColor(br, bg, bb); else doc.setTextColor(40, 40, 40);
     doc.text(label, boxX, cursorY + i * 6);
     doc.text(val, W - 14, cursorY + i * 6, { align: "right" });
   });
