@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Download, Mail, Trash2, ArrowLeft, Receipt, Pencil } from "lucide-react";
+import { Plus, Download, Mail, Trash2, ArrowLeft, Receipt, Pencil, Repeat } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { formatIDR, formatDate, statusColor, statusLabel, methodLabel } from "@/lib/format";
 import { generateReceiptPdf } from "@/lib/receiptPdf";
 import { generateInvoicePdf } from "@/lib/invoicePdf";
@@ -21,6 +22,7 @@ const InvoiceDetail = () => {
   const [items, setItems] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [agency, setAgency] = useState<any>(null);
+  const [clients, setClients] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ payment_date: new Date().toISOString().slice(0, 10), method: "bank_transfer", amount: 0, notes: "" });
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -32,13 +34,14 @@ const InvoiceDetail = () => {
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [{ data: inv }, { data: its }, { data: pays }, { data: ag }] = await Promise.all([
+    const [{ data: inv }, { data: its }, { data: pays }, { data: ag }, { data: cls }] = await Promise.all([
       supabase.from("invoices").select("*, client:clients(*)").eq("id", id).single(),
       supabase.from("invoice_items").select("*").eq("invoice_id", id).order("position"),
       supabase.from("payments").select("*").eq("invoice_id", id).order("payment_date", { ascending: false }),
       supabase.from("agency_settings").select("*").limit(1).single(),
+      supabase.from("clients").select("*").order("name"),
     ]);
-    setInvoice(inv); setItems(its ?? []); setPayments(pays ?? []); setAgency(ag);
+    setInvoice(inv); setItems(its ?? []); setPayments(pays ?? []); setAgency(ag); setClients(cls ?? []);
     setForm((f) => ({ ...f, amount: inv ? Math.max(0, Number(inv.total) - Number(inv.paid_amount)) : 0 }));
   }, [id]);
 
@@ -154,11 +157,15 @@ const InvoiceDetail = () => {
 
   const openEditInvoice = () => {
     setEditInv({
+      client_id: invoice.client_id,
       issue_date: invoice.issue_date,
       due_date: invoice.due_date,
       tax_rate: Number(invoice.tax_rate),
       notes: invoice.notes ?? "",
       status: invoice.status,
+      is_recurring: !!invoice.is_recurring,
+      recurring_active: !!invoice.recurring_active,
+      recurring_day: invoice.recurring_day ?? 1,
       items: items.map((it) => ({ id: it.id, description: it.description, quantity: Number(it.quantity), unit_price: Number(it.unit_price) })),
     });
     setEditInvOpen(true);
@@ -166,26 +173,30 @@ const InvoiceDetail = () => {
 
   const saveInvoice = async () => {
     if (!editInv) return;
+    if (!editInv.client_id) { toast.error("Pilih client"); return; }
+    const valid = (editInv.items as any[]).filter((l) => l.description.trim() && l.quantity > 0);
+    if (valid.length === 0) { toast.error("Tambahkan minimal 1 item"); return; }
     setBusy(true);
     try {
       const { error } = await supabase.from("invoices").update({
+        client_id: editInv.client_id,
         issue_date: editInv.issue_date,
         due_date: editInv.due_date,
         tax_rate: editInv.tax_rate,
         notes: editInv.notes || null,
         status: editInv.status,
+        is_recurring: editInv.is_recurring,
+        recurring_active: editInv.is_recurring ? editInv.recurring_active : false,
+        recurring_day: editInv.is_recurring ? editInv.recurring_day : null,
       }).eq("id", invoice.id);
       if (error) throw error;
 
       // Replace items
       await supabase.from("invoice_items").delete().eq("invoice_id", invoice.id);
-      const valid = (editInv.items as any[]).filter((l) => l.description.trim() && l.quantity > 0);
-      if (valid.length > 0) {
-        const { error: e2 } = await supabase.from("invoice_items").insert(
-          valid.map((l, i) => ({ invoice_id: invoice.id, description: l.description.trim(), quantity: l.quantity, unit_price: l.unit_price, position: i }))
-        );
-        if (e2) throw e2;
-      }
+      const { error: e2 } = await supabase.from("invoice_items").insert(
+        valid.map((l, i) => ({ invoice_id: invoice.id, description: l.description.trim(), quantity: l.quantity, unit_price: l.unit_price, position: i }))
+      );
+      if (e2) throw e2;
       toast.success("Invoice diperbarui");
       setEditInvOpen(false);
       await load();
@@ -346,19 +357,15 @@ const InvoiceDetail = () => {
           {editInv && (
             <div className="grid gap-3">
               <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-3"><Label>Client *</Label>
+                  <Select value={editInv.client_id} onValueChange={(v) => setEditInv({ ...editInv, client_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Pilih client" /></SelectTrigger>
+                    <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ""}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
                 <div><Label>Tanggal</Label><Input type="date" value={editInv.issue_date} onChange={(e) => setEditInv({ ...editInv, issue_date: e.target.value })} /></div>
                 <div><Label>Jatuh Tempo</Label><Input type="date" value={editInv.due_date} onChange={(e) => setEditInv({ ...editInv, due_date: e.target.value })} /></div>
                 <div><Label>Pajak (%)</Label><Input type="number" min={0} value={editInv.tax_rate} onChange={(e) => setEditInv({ ...editInv, tax_rate: Number(e.target.value) })} /></div>
-              </div>
-              <div>
-                <Label>Status</Label>
-                <Select value={editInv.status} onValueChange={(v) => setEditInv({ ...editInv, status: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(statusLabel).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">Status akan direkonsiliasi otomatis berdasarkan total pembayaran.</p>
               </div>
               <div className="space-y-2">
                 <Label>Items</Label>
@@ -372,7 +379,51 @@ const InvoiceDetail = () => {
                 ))}
                 <Button variant="outline" size="sm" onClick={() => setEditInv({ ...editInv, items: [...editInv.items, { description: "", quantity: 1, unit_price: 0 }] })}><Plus className="w-3 h-3 mr-1" />Item</Button>
               </div>
+
+              {(() => {
+                const sub = (editInv.items as any[]).reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unit_price || 0), 0);
+                const tx = Math.round(sub * Number(editInv.tax_rate || 0) / 100);
+                return (
+                  <div className="bg-accent/40 rounded-lg p-3 space-y-1 text-sm">
+                    <div className="flex justify-between"><span>Subtotal</span><span>{formatIDR(sub)}</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>Pajak ({editInv.tax_rate}%)</span><span>{formatIDR(tx)}</span></div>
+                    <div className="flex justify-between font-semibold text-base pt-1 border-t border-border"><span>Total</span><span>{formatIDR(sub + tx)}</span></div>
+                  </div>
+                );
+              })()}
+
               <div><Label>Catatan</Label><Textarea value={editInv.notes} onChange={(e) => setEditInv({ ...editInv, notes: e.target.value })} /></div>
+
+              <div>
+                <Label>Status</Label>
+                <Select value={editInv.status} onValueChange={(v) => setEditInv({ ...editInv, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(statusLabel).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Status akan direkonsiliasi otomatis berdasarkan total pembayaran.</p>
+              </div>
+
+              <div className="rounded-lg border border-border p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Repeat className="w-4 h-4 text-primary" />
+                    <div>
+                      <Label className="cursor-pointer">Invoice Berulang Tiap Bulan</Label>
+                      <p className="text-xs text-muted-foreground">Sistem akan otomatis membuat invoice baru setiap bulan.</p>
+                    </div>
+                  </div>
+                  <Switch checked={editInv.is_recurring} onCheckedChange={(v) => setEditInv({ ...editInv, is_recurring: v, recurring_active: v })} />
+                </div>
+                {editInv.is_recurring && (
+                  <div className="grid grid-cols-2 gap-3 items-center">
+                    <Label>Tanggal Generate (1–31)</Label>
+                    <Input type="number" min={1} max={31} value={editInv.recurring_day} onChange={(e) => setEditInv({ ...editInv, recurring_day: Math.min(31, Math.max(1, Number(e.target.value) || 1)) })} />
+                    <p className="col-span-2 text-xs text-muted-foreground">Jika bulan tidak memiliki tanggal tersebut (mis. 31 Feb), akan digunakan tanggal terakhir bulan itu.</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <DialogFooter><Button onClick={saveInvoice} disabled={busy}>{busy ? "Menyimpan..." : "Simpan"}</Button></DialogFooter>
