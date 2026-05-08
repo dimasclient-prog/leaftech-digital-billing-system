@@ -20,13 +20,16 @@ export type Database = {
           bank_account_name: string | null
           bank_account_number: string | null
           bank_name: string | null
+          brand_color: string | null
           created_at: string
           email: string | null
           id: string
+          invoice_header_label: string | null
           logo_url: string | null
           name: string
           phone: string | null
           receipt_footer: string | null
+          receipt_header_label: string | null
           updated_at: string
         }
         Insert: {
@@ -34,13 +37,16 @@ export type Database = {
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
+          brand_color?: string | null
           created_at?: string
           email?: string | null
           id?: string
+          invoice_header_label?: string | null
           logo_url?: string | null
           name?: string
           phone?: string | null
           receipt_footer?: string | null
+          receipt_header_label?: string | null
           updated_at?: string
         }
         Update: {
@@ -48,13 +54,16 @@ export type Database = {
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
+          brand_color?: string | null
           created_at?: string
           email?: string | null
           id?: string
+          invoice_header_label?: string | null
           logo_url?: string | null
           name?: string
           phone?: string | null
           receipt_footer?: string | null
+          receipt_header_label?: string | null
           updated_at?: string
         }
         Relationships: []
