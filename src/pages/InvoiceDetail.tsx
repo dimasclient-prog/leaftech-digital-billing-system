@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Download, Mail, Trash2, ArrowLeft, Receipt, Pencil } from "lucide-react";
+import { Plus, Download, Mail, Trash2, ArrowLeft, Receipt, Pencil, Repeat } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { formatIDR, formatDate, statusColor, statusLabel, methodLabel } from "@/lib/format";
 import { generateReceiptPdf } from "@/lib/receiptPdf";
 import { generateInvoicePdf } from "@/lib/invoicePdf";
@@ -21,6 +22,7 @@ const InvoiceDetail = () => {
   const [items, setItems] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [agency, setAgency] = useState<any>(null);
+  const [clients, setClients] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ payment_date: new Date().toISOString().slice(0, 10), method: "bank_transfer", amount: 0, notes: "" });
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -32,13 +34,14 @@ const InvoiceDetail = () => {
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [{ data: inv }, { data: its }, { data: pays }, { data: ag }] = await Promise.all([
+    const [{ data: inv }, { data: its }, { data: pays }, { data: ag }, { data: cls }] = await Promise.all([
       supabase.from("invoices").select("*, client:clients(*)").eq("id", id).single(),
       supabase.from("invoice_items").select("*").eq("invoice_id", id).order("position"),
       supabase.from("payments").select("*").eq("invoice_id", id).order("payment_date", { ascending: false }),
       supabase.from("agency_settings").select("*").limit(1).single(),
+      supabase.from("clients").select("*").order("name"),
     ]);
-    setInvoice(inv); setItems(its ?? []); setPayments(pays ?? []); setAgency(ag);
+    setInvoice(inv); setItems(its ?? []); setPayments(pays ?? []); setAgency(ag); setClients(cls ?? []);
     setForm((f) => ({ ...f, amount: inv ? Math.max(0, Number(inv.total) - Number(inv.paid_amount)) : 0 }));
   }, [id]);
 
@@ -154,11 +157,15 @@ const InvoiceDetail = () => {
 
   const openEditInvoice = () => {
     setEditInv({
+      client_id: invoice.client_id,
       issue_date: invoice.issue_date,
       due_date: invoice.due_date,
       tax_rate: Number(invoice.tax_rate),
       notes: invoice.notes ?? "",
       status: invoice.status,
+      is_recurring: !!invoice.is_recurring,
+      recurring_active: !!invoice.recurring_active,
+      recurring_day: invoice.recurring_day ?? 1,
       items: items.map((it) => ({ id: it.id, description: it.description, quantity: Number(it.quantity), unit_price: Number(it.unit_price) })),
     });
     setEditInvOpen(true);
@@ -166,26 +173,30 @@ const InvoiceDetail = () => {
 
   const saveInvoice = async () => {
     if (!editInv) return;
+    if (!editInv.client_id) { toast.error("Pilih client"); return; }
+    const valid = (editInv.items as any[]).filter((l) => l.description.trim() && l.quantity > 0);
+    if (valid.length === 0) { toast.error("Tambahkan minimal 1 item"); return; }
     setBusy(true);
     try {
       const { error } = await supabase.from("invoices").update({
+        client_id: editInv.client_id,
         issue_date: editInv.issue_date,
         due_date: editInv.due_date,
         tax_rate: editInv.tax_rate,
         notes: editInv.notes || null,
         status: editInv.status,
+        is_recurring: editInv.is_recurring,
+        recurring_active: editInv.is_recurring ? editInv.recurring_active : false,
+        recurring_day: editInv.is_recurring ? editInv.recurring_day : null,
       }).eq("id", invoice.id);
       if (error) throw error;
 
       // Replace items
       await supabase.from("invoice_items").delete().eq("invoice_id", invoice.id);
-      const valid = (editInv.items as any[]).filter((l) => l.description.trim() && l.quantity > 0);
-      if (valid.length > 0) {
-        const { error: e2 } = await supabase.from("invoice_items").insert(
-          valid.map((l, i) => ({ invoice_id: invoice.id, description: l.description.trim(), quantity: l.quantity, unit_price: l.unit_price, position: i }))
-        );
-        if (e2) throw e2;
-      }
+      const { error: e2 } = await supabase.from("invoice_items").insert(
+        valid.map((l, i) => ({ invoice_id: invoice.id, description: l.description.trim(), quantity: l.quantity, unit_price: l.unit_price, position: i }))
+      );
+      if (e2) throw e2;
       toast.success("Invoice diperbarui");
       setEditInvOpen(false);
       await load();
