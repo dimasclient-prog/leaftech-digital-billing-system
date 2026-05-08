@@ -22,7 +22,7 @@ const Invoices = () => {
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState<string>("");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [dueDate, setDueDate] = useState(new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
   const [taxRate, setTaxRate] = useState(0);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<LineItem[]>([{ description: "", quantity: 1, unit_price: 0 }]);
@@ -63,6 +63,8 @@ const Invoices = () => {
     if (itemsErr) { toast.error(itemsErr.message); return; }
     toast.success("Invoice dibuat");
     setOpen(false); setLines([{ description: "", quantity: 1, unit_price: 0 }]); setClientId(""); setNotes(""); setTaxRate(0);
+    setIssueDate(new Date().toISOString().slice(0, 10));
+    setDueDate(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
     setIsRecurring(false); setRecurringDay(1);
     load();
   };
