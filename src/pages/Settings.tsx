@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Upload, Trash2, FileDown } from "lucide-react";
 import { generateInvoicePdf } from "@/lib/invoicePdf";
 import { generateReceiptPdf } from "@/lib/receiptPdf";
+import { withLogoDataUrl } from "@/lib/agencyLogo";
 
 const Settings = () => {
   const [s, setS] = useState<any>(null);
@@ -59,7 +60,8 @@ const Settings = () => {
     toast.success("Logo dihapus");
   };
 
-  const previewInvoice = () => {
+  const previewInvoice = async () => {
+    const agency = await withLogoDataUrl(s);
     const doc = generateInvoicePdf({
       invoice: {
         invoice_number: "INV-PREVIEW-0001", issue_date: new Date().toISOString().slice(0,10),
@@ -72,18 +74,19 @@ const Settings = () => {
         { description: "Jasa Digital Marketing — Bulan Berjalan", quantity: 1, unit_price: 4000000, amount: 4000000 },
         { description: "Iklan Meta Ads (Service Fee)", quantity: 1, unit_price: 1000000, amount: 1000000 },
       ],
-      agency: s,
+      agency,
     });
     window.open(doc.output("bloburl"), "_blank");
   };
 
-  const previewReceipt = () => {
+  const previewReceipt = async () => {
+    const agency = await withLogoDataUrl(s);
     const doc = generateReceiptPdf({
       receipt_number: "RCP-PREVIEW-0001", payment_date: new Date().toISOString().slice(0,10),
       method: "bank_transfer", amount: 2750000, notes: "Contoh kuitansi.",
       invoice: { invoice_number: "INV-PREVIEW-0001", total: 5550000, paid_amount: 2750000, status: "partially_paid",
         client: { name: "PT Contoh Client", company: "Contoh Co.", email: "client@contoh.com" } },
-      agency: s,
+      agency,
     });
     window.open(doc.output("bloburl"), "_blank");
   };
