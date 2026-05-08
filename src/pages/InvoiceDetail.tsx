@@ -357,19 +357,15 @@ const InvoiceDetail = () => {
           {editInv && (
             <div className="grid gap-3">
               <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-3"><Label>Client *</Label>
+                  <Select value={editInv.client_id} onValueChange={(v) => setEditInv({ ...editInv, client_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Pilih client" /></SelectTrigger>
+                    <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ""}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
                 <div><Label>Tanggal</Label><Input type="date" value={editInv.issue_date} onChange={(e) => setEditInv({ ...editInv, issue_date: e.target.value })} /></div>
                 <div><Label>Jatuh Tempo</Label><Input type="date" value={editInv.due_date} onChange={(e) => setEditInv({ ...editInv, due_date: e.target.value })} /></div>
                 <div><Label>Pajak (%)</Label><Input type="number" min={0} value={editInv.tax_rate} onChange={(e) => setEditInv({ ...editInv, tax_rate: Number(e.target.value) })} /></div>
-              </div>
-              <div>
-                <Label>Status</Label>
-                <Select value={editInv.status} onValueChange={(v) => setEditInv({ ...editInv, status: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(statusLabel).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">Status akan direkonsiliasi otomatis berdasarkan total pembayaran.</p>
               </div>
               <div className="space-y-2">
                 <Label>Items</Label>
@@ -383,7 +379,51 @@ const InvoiceDetail = () => {
                 ))}
                 <Button variant="outline" size="sm" onClick={() => setEditInv({ ...editInv, items: [...editInv.items, { description: "", quantity: 1, unit_price: 0 }] })}><Plus className="w-3 h-3 mr-1" />Item</Button>
               </div>
+
+              {(() => {
+                const sub = (editInv.items as any[]).reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unit_price || 0), 0);
+                const tx = Math.round(sub * Number(editInv.tax_rate || 0) / 100);
+                return (
+                  <div className="bg-accent/40 rounded-lg p-3 space-y-1 text-sm">
+                    <div className="flex justify-between"><span>Subtotal</span><span>{formatIDR(sub)}</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>Pajak ({editInv.tax_rate}%)</span><span>{formatIDR(tx)}</span></div>
+                    <div className="flex justify-between font-semibold text-base pt-1 border-t border-border"><span>Total</span><span>{formatIDR(sub + tx)}</span></div>
+                  </div>
+                );
+              })()}
+
               <div><Label>Catatan</Label><Textarea value={editInv.notes} onChange={(e) => setEditInv({ ...editInv, notes: e.target.value })} /></div>
+
+              <div>
+                <Label>Status</Label>
+                <Select value={editInv.status} onValueChange={(v) => setEditInv({ ...editInv, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(statusLabel).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Status akan direkonsiliasi otomatis berdasarkan total pembayaran.</p>
+              </div>
+
+              <div className="rounded-lg border border-border p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Repeat className="w-4 h-4 text-primary" />
+                    <div>
+                      <Label className="cursor-pointer">Invoice Berulang Tiap Bulan</Label>
+                      <p className="text-xs text-muted-foreground">Sistem akan otomatis membuat invoice baru setiap bulan.</p>
+                    </div>
+                  </div>
+                  <Switch checked={editInv.is_recurring} onCheckedChange={(v) => setEditInv({ ...editInv, is_recurring: v, recurring_active: v })} />
+                </div>
+                {editInv.is_recurring && (
+                  <div className="grid grid-cols-2 gap-3 items-center">
+                    <Label>Tanggal Generate (1–31)</Label>
+                    <Input type="number" min={1} max={31} value={editInv.recurring_day} onChange={(e) => setEditInv({ ...editInv, recurring_day: Math.min(31, Math.max(1, Number(e.target.value) || 1)) })} />
+                    <p className="col-span-2 text-xs text-muted-foreground">Jika bulan tidak memiliki tanggal tersebut (mis. 31 Feb), akan digunakan tanggal terakhir bulan itu.</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <DialogFooter><Button onClick={saveInvoice} disabled={busy}>{busy ? "Menyimpan..." : "Simpan"}</Button></DialogFooter>
