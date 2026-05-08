@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Download, Mail, Trash2, ArrowLeft, Receipt } from "lucide-react";
+import { Plus, Download, Mail, Trash2, ArrowLeft, Receipt, Pencil } from "lucide-react";
 import { formatIDR, formatDate, statusColor, statusLabel, methodLabel } from "@/lib/format";
 import { generateReceiptPdf } from "@/lib/receiptPdf";
 import { generateInvoicePdf } from "@/lib/invoicePdf";
@@ -25,6 +25,10 @@ const InvoiceDetail = () => {
   const [form, setForm] = useState({ payment_date: new Date().toISOString().slice(0, 10), method: "bank_transfer", amount: 0, notes: "" });
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editInvOpen, setEditInvOpen] = useState(false);
+  const [editInv, setEditInv] = useState<any>(null);
+  const [editPayOpen, setEditPayOpen] = useState(false);
+  const [editPay, setEditPay] = useState<any>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -148,6 +152,79 @@ const InvoiceDetail = () => {
     toast.success("Dihapus, invoice direkonsiliasi"); load();
   };
 
+  const openEditInvoice = () => {
+    setEditInv({
+      issue_date: invoice.issue_date,
+      due_date: invoice.due_date,
+      tax_rate: Number(invoice.tax_rate),
+      notes: invoice.notes ?? "",
+      status: invoice.status,
+      items: items.map((it) => ({ id: it.id, description: it.description, quantity: Number(it.quantity), unit_price: Number(it.unit_price) })),
+    });
+    setEditInvOpen(true);
+  };
+
+  const saveInvoice = async () => {
+    if (!editInv) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.from("invoices").update({
+        issue_date: editInv.issue_date,
+        due_date: editInv.due_date,
+        tax_rate: editInv.tax_rate,
+        notes: editInv.notes || null,
+        status: editInv.status,
+      }).eq("id", invoice.id);
+      if (error) throw error;
+
+      // Replace items
+      await supabase.from("invoice_items").delete().eq("invoice_id", invoice.id);
+      const valid = (editInv.items as any[]).filter((l) => l.description.trim() && l.quantity > 0);
+      if (valid.length > 0) {
+        const { error: e2 } = await supabase.from("invoice_items").insert(
+          valid.map((l, i) => ({ invoice_id: invoice.id, description: l.description.trim(), quantity: l.quantity, unit_price: l.unit_price, position: i }))
+        );
+        if (e2) throw e2;
+      }
+      toast.success("Invoice diperbarui");
+      setEditInvOpen(false);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Gagal menyimpan");
+    } finally { setBusy(false); }
+  };
+
+  const openEditPayment = (p: any) => {
+    setEditPay({
+      id: p.id,
+      payment_date: p.payment_date,
+      method: p.method,
+      amount: Number(p.amount),
+      notes: p.notes ?? "",
+    });
+    setEditPayOpen(true);
+  };
+
+  const savePayment = async () => {
+    if (!editPay) return;
+    if (editPay.amount <= 0) { toast.error("Jumlah harus > 0"); return; }
+    setBusy(true);
+    try {
+      const { error } = await supabase.from("payments").update({
+        payment_date: editPay.payment_date,
+        method: editPay.method,
+        amount: editPay.amount,
+        notes: editPay.notes || null,
+      }).eq("id", editPay.id);
+      if (error) throw error;
+      toast.success("Pembayaran diperbarui");
+      setEditPayOpen(false);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Gagal menyimpan");
+    } finally { setBusy(false); }
+  };
+
   const downloadProof = async (path: string) => {
     const { data, error } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 60);
     if (error || !data) { toast.error("Gagal membuka file"); return; }
@@ -175,6 +252,7 @@ const InvoiceDetail = () => {
               <p className="text-2xl font-bold">{formatIDR(invoice.total)}</p>
               <p className="text-xs text-muted-foreground mt-1">Dibayar {formatIDR(invoice.paid_amount)} • Sisa <span className="font-semibold text-foreground">{formatIDR(remaining)}</span></p>
               <Button size="sm" variant="outline" className="mt-2" onClick={downloadInvoice}><Download className="w-4 h-4 mr-1" />Download Invoice PDF</Button>
+              <Button size="sm" variant="outline" className="mt-2 ml-2" onClick={openEditInvoice}><Pencil className="w-4 h-4 mr-1" />Edit Invoice</Button>
             </div>
           </div>
 
@@ -252,6 +330,7 @@ const InvoiceDetail = () => {
                     {p.proof_path && <Button variant="ghost" size="sm" onClick={() => downloadProof(p.proof_path)}>Bukti</Button>}
                     <Button variant="ghost" size="sm" onClick={() => downloadReceipt(p)}><Download className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="sm" onClick={() => emailReceipt(p)}><Mail className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEditPayment(p)}><Pencil className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="sm" onClick={() => deletePayment(p.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                   </div>
                 </div>
@@ -260,6 +339,67 @@ const InvoiceDetail = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={editInvOpen} onOpenChange={setEditInvOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Invoice</DialogTitle></DialogHeader>
+          {editInv && (
+            <div className="grid gap-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Tanggal</Label><Input type="date" value={editInv.issue_date} onChange={(e) => setEditInv({ ...editInv, issue_date: e.target.value })} /></div>
+                <div><Label>Jatuh Tempo</Label><Input type="date" value={editInv.due_date} onChange={(e) => setEditInv({ ...editInv, due_date: e.target.value })} /></div>
+                <div><Label>Pajak (%)</Label><Input type="number" min={0} value={editInv.tax_rate} onChange={(e) => setEditInv({ ...editInv, tax_rate: Number(e.target.value) })} /></div>
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={editInv.status} onValueChange={(v) => setEditInv({ ...editInv, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(statusLabel).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Status akan direkonsiliasi otomatis berdasarkan total pembayaran.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Items</Label>
+                {editInv.items.map((l: any, i: number) => (
+                  <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                    <Input className="col-span-6" placeholder="Deskripsi" value={l.description} onChange={(e) => { const n = [...editInv.items]; n[i].description = e.target.value; setEditInv({ ...editInv, items: n }); }} />
+                    <Input className="col-span-2" type="number" placeholder="Qty" value={l.quantity} onChange={(e) => { const n = [...editInv.items]; n[i].quantity = Number(e.target.value); setEditInv({ ...editInv, items: n }); }} />
+                    <Input className="col-span-3" type="number" placeholder="Harga" value={l.unit_price} onChange={(e) => { const n = [...editInv.items]; n[i].unit_price = Number(e.target.value); setEditInv({ ...editInv, items: n }); }} />
+                    <Button variant="ghost" size="icon" className="col-span-1" onClick={() => setEditInv({ ...editInv, items: editInv.items.filter((_: any, idx: number) => idx !== i) })}><Trash2 className="w-4 h-4" /></Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={() => setEditInv({ ...editInv, items: [...editInv.items, { description: "", quantity: 1, unit_price: 0 }] })}><Plus className="w-3 h-3 mr-1" />Item</Button>
+              </div>
+              <div><Label>Catatan</Label><Textarea value={editInv.notes} onChange={(e) => setEditInv({ ...editInv, notes: e.target.value })} /></div>
+            </div>
+          )}
+          <DialogFooter><Button onClick={saveInvoice} disabled={busy}>{busy ? "Menyimpan..." : "Simpan"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editPayOpen} onOpenChange={setEditPayOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Pembayaran</DialogTitle></DialogHeader>
+          {editPay && (
+            <div className="grid gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Tanggal</Label><Input type="date" value={editPay.payment_date} onChange={(e) => setEditPay({ ...editPay, payment_date: e.target.value })} /></div>
+                <div><Label>Metode</Label>
+                  <Select value={editPay.method} onValueChange={(v) => setEditPay({ ...editPay, method: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{Object.entries(methodLabel).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div><Label>Jumlah</Label><Input type="number" min={1} value={editPay.amount} onChange={(e) => setEditPay({ ...editPay, amount: Number(e.target.value) })} /></div>
+              <div><Label>Catatan</Label><Textarea value={editPay.notes} onChange={(e) => setEditPay({ ...editPay, notes: e.target.value })} /></div>
+            </div>
+          )}
+          <DialogFooter><Button onClick={savePayment} disabled={busy}>{busy ? "Menyimpan..." : "Simpan"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
