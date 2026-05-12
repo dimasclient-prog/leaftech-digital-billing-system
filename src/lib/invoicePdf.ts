@@ -55,35 +55,43 @@ export function generateInvoicePdf(data: InvoiceData): jsPDF {
   // Header band
   doc.setFillColor(br, bg, bb);
   doc.rect(0, 0, W, 32, "F");
-  doc.setTextColor(255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.text((data.agency.invoice_header_label || "INVOICE").toUpperCase(), 14, 14);
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text("Tagihan", 14, 21);
 
-  // Logo (top-right) — fall back to text name
-  let nameAnchorY = 14;
+  // Logo (top-left)
+  let infoX = 14;
   if (data.agency.logo_url) {
     try {
       const ext = (data.agency.logo_url.split(".").pop() || "PNG").toUpperCase();
       const fmt = ext === "JPG" ? "JPEG" : ext;
-      doc.addImage(data.agency.logo_url, fmt, W - 36, 4, 22, 22);
-      doc.setFontSize(10);
-      doc.text(data.agency.name, W - 40, 14, { align: "right" });
-      nameAnchorY = 0; // already drawn
+      doc.addImage(data.agency.logo_url, fmt, 10, 4, 22, 22);
+      infoX = 36;
     } catch {
-      // ignore — fall back below
+      // ignore
     }
   }
-  if (nameAnchorY) {
+
+  // Agency info (top-left, beside logo)
+  doc.setTextColor(255);
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text(data.agency.name, W - 14, 14, { align: "right" });
-  }
+  doc.text(data.agency.name, infoX, 10);
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  if (data.agency.email) doc.text(data.agency.email, W - 14, 20, { align: "right" });
-  if (data.agency.phone) doc.text(data.agency.phone, W - 14, 25, { align: "right" });
+  let infoY = 15;
+  if (data.agency.email) {
+    doc.text(data.agency.email, infoX, infoY);
+    infoY += 5;
+  }
+  if (data.agency.phone) {
+    doc.text(data.agency.phone, infoX, infoY);
+  }
+
+  // Invoice title (centered)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text((data.agency.invoice_header_label || "INVOICE").toUpperCase(), W / 2, 14, { align: "center" });
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("Tagihan", W / 2, 21, { align: "center" });
 
   doc.setTextColor(40);
   let y = 44;
