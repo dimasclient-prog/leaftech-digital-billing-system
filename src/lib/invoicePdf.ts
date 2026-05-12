@@ -120,25 +120,40 @@ export function generateInvoicePdf(data: InvoiceData): jsPDF {
   // Bill to
   y += 12;
   doc.setFillColor(Math.min(255, br + 200), Math.min(255, bg + 100), Math.min(255, bb + 150));
-  doc.roundedRect(14, y, W - 28, 28, 3, 3, "F");
+  doc.roundedRect(14, y, W - 28, 44, 3, 3, "F");
   doc.setFontSize(9);
   doc.setTextColor(100);
   doc.text("Ditagihkan kepada", 18, y + 6);
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(20);
-  doc.text(data.invoice.client.name, 18, y + 13);
+  const title = data.invoice.client.company || data.invoice.client.name;
+  doc.text(title, 18, y + 13);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  const meta: string[] = [];
-  if (data.invoice.client.company) meta.push(data.invoice.client.company);
-  if (data.invoice.client.email) meta.push(data.invoice.client.email);
-  if (data.invoice.client.phone) meta.push(data.invoice.client.phone);
-  if (meta.length) doc.text(meta.join(" • "), 18, y + 19);
-  if (data.invoice.client.address) doc.text(data.invoice.client.address, 18, y + 25);
+  let by = y + 19;
+  if (data.invoice.client.address) {
+    doc.text(data.invoice.client.address, 18, by);
+    by += 6;
+  }
+  if (data.invoice.client.company && data.invoice.client.name) {
+    by += 1;
+    doc.setFont("helvetica", "bold");
+    doc.text(`up : Bpk/Ibu ${data.invoice.client.name}`, 18, by);
+    doc.setFont("helvetica", "normal");
+    by += 5;
+  }
+  if (data.invoice.client.email) {
+    doc.text(data.invoice.client.email, 18, by);
+    by += 5;
+  }
+  if (data.invoice.client.phone) {
+    doc.text(data.invoice.client.phone, 18, by);
+    by += 5;
+  }
 
   // Items table
-  y += 36;
+  y += 52;
   autoTable(doc, {
     startY: y,
     theme: "grid",
