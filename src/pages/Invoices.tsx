@@ -20,6 +20,9 @@ interface LineItem { description: string; quantity: number; unit_price: number; 
 const Invoices = () => {
   const [items, setItems] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterClient, setFilterClient] = useState<string>("all");
+  const [filterMonth, setFilterMonth] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState<string>("");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
@@ -38,6 +41,21 @@ const Invoices = () => {
     setItems(invs ?? []); setClients(cls ?? []);
   };
   useEffect(() => { load(); }, []);
+
+  const availableMonths = Array.from(
+    new Set(items.map((inv) => inv.issue_date?.slice(0, 7)).filter(Boolean))
+  ).sort((a, b) => b.localeCompare(a));
+
+  const filteredItems = items.filter((inv) => {
+    const matchStatus =
+      filterStatus === "all" ? true :
+      filterStatus === "paid" ? inv.status === "paid" :
+      filterStatus === "unpaid" ? inv.status !== "paid" :
+      true;
+    const matchClient = filterClient === "all" ? true : inv.client_id === filterClient;
+    const matchMonth = filterMonth === "all" ? true : inv.issue_date?.slice(0, 7) === filterMonth;
+    return matchStatus && matchClient && matchMonth;
+  });
 
   const subtotal = lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unit_price || 0), 0);
   const tax = Math.round(subtotal * Number(taxRate || 0) / 100);
@@ -113,7 +131,7 @@ const Invoices = () => {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-sm text-muted-foreground">{items.length} invoices</p>
+        <p className="text-sm text-muted-foreground">{filteredItems.length} invoices</p>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button><Plus className="w-4 h-4 mr-1" />Invoice Baru</Button></DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -177,12 +195,53 @@ const Invoices = () => {
         </Dialog>
       </div>
 
+      {/* Filter Bar */}
+      <div className="flex flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <Label className="text-sm whitespace-nowrap">Status</Label>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua</SelectItem>
+              <SelectItem value="paid">Lunas</SelectItem>
+              <SelectItem value="unpaid">Belum Lunas</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-sm whitespace-nowrap">Client</Label>
+          <Select value={filterClient} onValueChange={setFilterClient}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua</SelectItem>
+              {clients.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ""}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-sm whitespace-nowrap">Bulan</Label>
+          <Select value={filterMonth} onValueChange={setFilterMonth}>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua</SelectItem>
+              {availableMonths.map((ym) => {
+                const [year, month] = ym.split("-");
+                const label = new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+                return <SelectItem key={ym} value={ym}>{label}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <Card><CardContent className="p-0">
-        {items.length === 0 ? (
+        {filteredItems.length === 0 ? (
           <div className="p-12 text-center"><FileText className="w-10 h-10 mx-auto text-muted-foreground mb-2" /><p className="text-sm text-muted-foreground">Belum ada invoice.</p></div>
         ) : (
           <div className="divide-y divide-border">
-            {items.map((inv) => (
+            {filteredItems.map((inv) => (
               <div key={inv.id} className="flex items-center justify-between p-4 hover:bg-accent/30">
                 <Link to={`/invoices/${inv.id}`} className="flex-1">
                   <p className="font-medium flex items-center gap-2">
