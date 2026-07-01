@@ -1,0 +1,11 @@
+ALTER FUNCTION public.payments_reconcile_trigger() SET search_path = public;
+ALTER FUNCTION public.generate_invoice_number() SET search_path = public;
+ALTER FUNCTION public.generate_receipt_number() SET search_path = public;
+ALTER FUNCTION public.invoice_items_after_trigger() SET search_path = public;
+ALTER FUNCTION public.invoice_items_recompute_trigger() SET search_path = public;
+ALTER FUNCTION public.set_updated_at() SET search_path = public;
+ALTER FUNCTION public.invoices_set_next_run() SET search_path = public;
+ALTER FUNCTION public.recompute_invoice_totals(uuid) SET search_path = public;
+ALTER FUNCTION public.reconcile_invoice(uuid) SET search_path = public;
+ALTER FUNCTION public.generate_recurring_invoices() SET search_path = public;
+ALTER FUNCTION public.compute_next_run_date(date, integer) SET search_path = public;
