@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   FileText,
@@ -6,8 +6,11 @@ import {
   Users,
   Settings as SettingsIcon,
   Sparkles,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { signOut, getCurrentUser } from "@/lib/auth";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -27,7 +30,14 @@ const titleMap: Record<string, string> = {
 
 const AppLayout = () => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const user = getCurrentUser();
    const title = titleMap[pathname] ?? (pathname.startsWith("/invoices") ? "Invoice Detail" : "Leaftech Billing System");
+
+  const handleLogout = () => {
+    signOut();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <div className="min-h-screen flex w-full bg-background">
@@ -66,6 +76,16 @@ const AppLayout = () => {
         <div className="mt-auto rounded-xl p-3 bg-accent/60 text-xs text-accent-foreground">
           <p className="font-medium">Receipt & Reconciliation</p>
           <p className="text-muted-foreground mt-0.5">Otomatis update status invoice setiap pembayaran masuk.</p>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 px-2 pt-3 border-t border-sidebar-border">
+          <div className="min-w-0">
+            <p className="text-xs font-medium truncate">{user ?? "Guest"}</p>
+            <p className="text-[10px] text-muted-foreground">Signed in</p>
+          </div>
+          <Button size="sm" variant="ghost" onClick={handleLogout} title="Logout">
+            <LogOut className="w-4 h-4" />
+          </Button>
         </div>
       </aside>
 
